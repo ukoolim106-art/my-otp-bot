@@ -1,33 +1,35 @@
-import telebot
-from telebot import types
+from aiogram import Bot, Dispatcher, types, executor
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # আপনার দেওয়া কনফিগারেশন
-BOT_TOKEN = "8077162426:AAHjtB_wOsHfY573O238gTnSE_fySDYtC6w"
+API_TOKEN = '8077162426:AAHkbm0XHTQClncR-v4-pMpxuKcLli_dCzk'
 ADMIN_ID = 8531139387
 
-bot = telebot.TeleBot(BOT_TOKEN)
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
 
-# স্টার্ট কমান্ড
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(types.KeyboardButton("🌐 𝙂𝙀𝙏 𝙉𝙀𝙒 𝙉𝙐𝙈𝘽𝙀𝙍 ✨"))
-    bot.send_message(message.chat.id, "🔥 *WELCOME TO OTP BOT*\n\nআপনার কাজ শুরু করতে নিচের বাটনটি চাপুন:", 
-                     reply_markup=markup, parse_mode="Markdown")
-
-# এডমিন চেকিং ফাংশন
-def is_admin(user_id):
-    return user_id == ADMIN_ID
-
-# বটের মূল কাজ বা বাটন হ্যান্ডলিং এখানে যোগ করুন
-@bot.message_handler(func=lambda message: True)
-def handle_messages(message):
-    if message.text == "🌐 𝙂𝙀𝙏 𝙉𝙀𝙒 𝙉𝙐𝙈𝘽𝙀𝙍 ✨":
-        bot.reply_to(message, "আপনি নতুন নাম্বার নেওয়ার অপশনে আছেন।")
+# স্টার্ট কমান্ড এবং মেনু
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    # ইউজারকে মেনু দেখানো
+    markup = InlineKeyboardMarkup(row_width=2)
+    item1 = InlineKeyboardButton("📱 Get Number", callback_data='get_number')
+    item2 = InlineKeyboardButton("📊 Active Number", callback_data='active_number')
+    item3 = InlineKeyboardButton("🏆 Leaderboard", callback_data='leaderboard')
     
-    # এডমিন প্যানেল উদাহরণ
-    if message.text == "/admin" and is_admin(message.chat.id):
-        bot.reply_to(message, "স্বাগতম এডমিন! আপনি কন্ট্রোল প্যানেলে আছেন।")
+    markup.add(item1, item2, item3)
+    
+    welcome_text = (f"👋 WELCOME {message.from_user.full_name}!\n"
+                    "THIS IS [SOJIB NUMBER BOT].\n\n"
+                    "📌 PLEASE SELECT A BUTTON BELOW:")
+    
+    await message.answer(welcome_text, reply_markup=markup)
 
-print("🤖 বট সফলভাবে চালু হয়েছে!")
-bot.infinity_polling()
+# বাটন হ্যান্ডলার
+@dp.callback_query_handler(lambda c: c.data == 'get_number')
+async def get_number(callback_query: types.CallbackQuery):
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, "🌍 Select a country for WhatsApp:")
+
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)
