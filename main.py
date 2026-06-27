@@ -1,6 +1,5 @@
 import logging
 import asyncio
-import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
@@ -17,62 +16,50 @@ def get_country_info(number):
     if number.startswith("+880"): return "🇧🇩 Bangladesh", "BD"
     elif number.startswith("+91"): return "🇮🇳 India", "IN"
     elif number.startswith("+1"): return "🇺🇸 USA/Canada", "US"
-    elif number.startswith("+44"): return "🇬🇧 UK", "UK"
-    elif number.startswith("+62"): return "🇮🇩 Indonesia", "ID"
-    elif number.startswith("+92"): return "🇵🇰 Pakistan", "PK"
     return "🌐 Global", "XX"
 
 # ডাটা স্টোরেজ
 available_numbers = {}
 
-# স্টার্ট মেনু
-def main_menu():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🌐 𝙂𝙀𝙏 𝙉𝙀𝙒 𝙉𝙐𝙈𝘽𝙀𝙍 ✨")],
-        [KeyboardButton(text="👤 𝙐𝙎𝙀𝙍 𝙋𝙍𝙊𝙁𝙄𝙇𝙀 🛡️")]
-    ], resize_keyboard=True)
-
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    await message.answer("🔥 **SUPER FAST OTP BOT** 🔥", reply_markup=main_menu())
+    kb = ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text="🌐 𝙂𝙀𝙏 𝙉𝙀𝙒 𝙉𝙐𝙈𝘽𝙀𝙍 ✨")]
+    ], resize_keyboard=True)
+    await message.answer("🔥 *SUPER FAST OTP BOT*\n\nনিচে থেকে নাম্বার নিন:", reply_markup=kb, parse_mode="Markdown")
 
-# ফাইল আপলোড হ্যান্ডলার (অ্যাডমিন)
 @dp.message(F.document)
 async def handle_file(message: types.Message):
     if message.from_user.id == ADMIN_ID:
         file_path = "numbers.txt"
         await bot.download(message.document, destination=file_path)
-        
         with open(file_path, "r") as f:
-            lines = f.readlines()
-        
-        stats = {}
-        for line in lines:
-            num = line.strip()
-            country, _ = get_country_info(num)
-            if country not in stats: stats[country] = []
-            stats[country].append(num)
+            lines = [line.strip() for line in f if line.strip()]
         
         global available_numbers
-        available_numbers = stats
+        available_numbers = {"BD": [], "IN": [], "US": []}
+        for num in lines:
+            _, code = get_country_info(num)
+            if code in available_numbers: available_numbers[code].append(num)
         
-        report = "✅ ফাইল আপডেট হয়েছে!\n\n"
-        for c, n in stats.items():
-            report += f"{c}: {len(n)} টি নাম্বার\n"
-        await message.answer(report)
+        await message.answer("✅ ফাইল আপডেট হয়েছে! নাম্বার রেডি।")
 
-# গেট নাম্বার মেনু
 @dp.message(F.text == "🌐 𝙂𝙀𝙏 𝙉𝙀𝙒 𝙉𝙐𝙈𝘽𝙀𝙍 ✨")
-async def get_number(message: types.Message):
+async def show_countries(message: types.Message):
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🇧🇩 Bangladesh", callback_data="get_BD")],
         [InlineKeyboardButton(text="🇮🇳 India", callback_data="get_IN")]
     ])
-    await message.answer("সার্ভিস বেছে নিন:", reply_markup=markup)
+    await message.answer("দেশ সিলেক্ট করুন:", reply_markup=markup)
 
 @dp.callback_query(F.data.startswith("get_"))
 async def send_number(call: types.CallbackQuery):
-    await call.message.answer("💳 পেমেন্ট করতে অ্যাডমিনের সাথে যোগাযোগ করুন।")
+    code = call.data.split("_")[1]
+    if available_numbers.get(code) and len(available_numbers[code]) > 0:
+        number = available_numbers[code].pop(0) # ফাইল থেকে নাম্বারটি তুলে নিচ্ছে
+        await call.message.answer(f"✅ আপনার নাম্বার: `{number}`")
+    else:
+        await call.message.answer("❌ দুঃখিত, এই দেশের কোনো নাম্বার অবশিষ্ট নেই।")
 
 async def main():
     await dp.start_polling(bot)
