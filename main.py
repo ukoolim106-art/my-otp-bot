@@ -1,83 +1,78 @@
 import logging
 import asyncio
+import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-# আপনার দেওয়া কনফিগারেশন সেট করা হয়েছে
 BOT_TOKEN = "8077162426:AAHjtB_wOsHfY573O238gTnSE_fySDYtC6w"
 ADMIN_ID = 8531139387
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-users_db = set()
 
-# ১. মেইন মেনু ডিজাইন
-def user_main_menu():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🌐 𝙂𝙀𝙏 𝙉𝙀𝙒 𝙉𝙐𝙈𝘽𝙀𝙍 ✨")],
-            [KeyboardButton(text="👤 𝙐𝙎𝙀𝙍 𝙋𝙍𝙊𝙁𝙄𝙇𝙀 🛡️")]
-        ],
-        resize_keyboard=True
-    )
+# কান্ট্রি ডিটেকশন লজিক
+def get_country_info(number):
+    if number.startswith("+880"): return "🇧🇩 Bangladesh", "BD"
+    elif number.startswith("+91"): return "🇮🇳 India", "IN"
+    elif number.startswith("+1"): return "🇺🇸 USA/Canada", "US"
+    elif number.startswith("+44"): return "🇬🇧 UK", "UK"
+    elif number.startswith("+62"): return "🇮🇩 Indonesia", "ID"
+    elif number.startswith("+92"): return "🇵🇰 Pakistan", "PK"
+    return "🌐 Global", "XX"
 
-# ২. স্টার্ট কমান্ড
+# ডাটা স্টোরেজ
+available_numbers = {}
+
+# স্টার্ট মেনু
+def main_menu():
+    return ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text="🌐 𝙂𝙀𝙏 𝙉𝙀𝙒 𝙉𝙐𝙈𝘽𝙀𝙍 ✨")],
+        [KeyboardButton(text="👤 𝙐𝙎𝙀𝙍 𝙋𝙍𝙊𝙁𝙄𝙇𝙀 🛡️")]
+    ], resize_keyboard=True)
+
 @dp.message(Command("start"))
-async def start_cmd(message: types.Message):
-    users_db.add(message.from_user.id)
-    text = "🔥 **𝙎𝙐𝙋𝙀𝙍 𝙁𝘼𝙎𝙏 𝙊𝙏𝙋 𝘽𝙊𝙏** 🔥\n\nস্বাগতম! নিচে থেকে সার্ভিস বেছে নিন।"
-    await message.answer(text, reply_markup=user_main_menu(), parse_mode="Markdown")
+async def start(message: types.Message):
+    await message.answer("🔥 **SUPER FAST OTP BOT** 🔥", reply_markup=main_menu())
 
-# ৩. গেট নিউ নাম্বারে ক্লিক করলে সার্ভিস মেনু
+# ফাইল আপলোড হ্যান্ডলার (অ্যাডমিন)
+@dp.message(F.document)
+async def handle_file(message: types.Message):
+    if message.from_user.id == ADMIN_ID:
+        file_path = "numbers.txt"
+        await bot.download(message.document, destination=file_path)
+        
+        with open(file_path, "r") as f:
+            lines = f.readlines()
+        
+        stats = {}
+        for line in lines:
+            num = line.strip()
+            country, _ = get_country_info(num)
+            if country not in stats: stats[country] = []
+            stats[country].append(num)
+        
+        global available_numbers
+        available_numbers = stats
+        
+        report = "✅ ফাইল আপডেট হয়েছে!\n\n"
+        for c, n in stats.items():
+            report += f"{c}: {len(n)} টি নাম্বার\n"
+        await message.answer(report)
+
+# গেট নাম্বার মেনু
 @dp.message(F.text == "🌐 𝙂𝙀𝙏 𝙉𝙀𝙒 𝙉𝙐𝙈𝘽𝙀𝙍 ✨")
-async def show_service_menu(message: types.Message):
+async def get_number(message: types.Message):
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔥 WhatsApp", callback_data="buy_whatsapp")],
-        [InlineKeyboardButton(text="🚀 Telegram", callback_data="buy_telegram")],
-        [InlineKeyboardButton(text="💎 Facebook", callback_data="buy_facebook")],
-        [InlineKeyboardButton(text="⚡ Instagram", callback_data="buy_instagram")]
+        [InlineKeyboardButton(text="🇧🇩 Bangladesh", callback_data="get_BD")],
+        [InlineKeyboardButton(text="🇮🇳 India", callback_data="get_IN")]
     ])
-    await message.answer("✨ *আপনার প্রয়োজনীয় সার্ভিসটি সিলেক্ট করুন:*", reply_markup=markup, parse_mode="Markdown")
+    await message.answer("সার্ভিস বেছে নিন:", reply_markup=markup)
 
-# ৪. সার্ভিস সিলেক্ট করার পর রেসপন্স
-@dp.callback_query(F.data.startswith("buy_"))
-async def process_buy(callback: types.CallbackQuery):
-    service = callback.data.split("_")[1].upper()
-    await callback.message.answer(f"✅ আপনি *{service}* সিলেক্ট করেছেন!\n\n💳 পেমেন্ট কনফার্ম করতে অ্যাডমিনের সাথে যোগাযোগ করুন।")
-    await callback.answer()
-
-# ৫. প্রোফাইল চেক
-@dp.message(F.text == "👤 𝙐𝙎𝙀𝙍 𝙋𝙍𝙊𝙁𝙄𝙇𝙀 🛡️")
-async def profile_cmd(message: types.Message):
-    await message.answer(f"👤 আপনার আইডি: `{message.from_user.id}`\n🛡️ স্ট্যাটাস: অ্যাক্টিভ")
-
-# ৬. অ্যাডমিন প্যানেল
-@dp.message(Command("admin"))
-async def admin_panel(message: types.Message):
-    if message.from_user.id == ADMIN_ID:
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📊 STATS", callback_data="stats"), InlineKeyboardButton(text="📢 BROADCAST", callback_data="bc")]
-        ])
-        await message.answer("👑 **অ্যাডমিন কন্ট্রোল প্যানেল**", reply_markup=kb)
-
-@dp.callback_query(F.data == "stats")
-async def send_stats(call: types.CallbackQuery):
-    await call.message.answer(f"📈 মোট ইউজার: {len(users_db)}")
-
-@dp.callback_query(F.data == "bc")
-async def ask_bc(call: types.CallbackQuery):
-    await call.message.answer("📩 মেসেজটি লিখুন (যেমন: /send হ্যালো সবাইকে)")
-
-@dp.message(Command("send"))
-async def broadcast(message: types.Message):
-    if message.from_user.id == ADMIN_ID:
-        text = message.text.replace("/send", "").strip()
-        for uid in users_db:
-            try: await bot.send_message(uid, text)
-            except: continue
-        await message.answer("✅ মেসেজ পাঠানো হয়েছে।")
+@dp.callback_query(F.data.startswith("get_"))
+async def send_number(call: types.CallbackQuery):
+    await call.message.answer("💳 পেমেন্ট করতে অ্যাডমিনের সাথে যোগাযোগ করুন।")
 
 async def main():
     await dp.start_polling(bot)
