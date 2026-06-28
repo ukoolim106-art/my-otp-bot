@@ -12,4 +12,4 @@ async def start(message: types.Message):
     await message.answer("✅ Bot is online! Your new setup is working.")
 
 if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+    executor.start_polling(dp, skip_updates=True
